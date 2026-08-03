@@ -521,6 +521,7 @@
     sCtx.beginPath();
     sCtx.arc(x,y, Math.max(W,H)*0.055, 0, Math.PI*2);
     sCtx.fill();
+    markGrid(x,y);
   }
 
   let lastPos = null;
@@ -539,21 +540,42 @@
     lastPos = {x,y};
   }
 
-  let checkCounter = 0;
-  function checkProgress(){
-    checkCounter++;
-    if(checkCounter % 6 !== 0) return; // throttle sampling
-    const step = 8;
-    const imgData = sCtx.getImageData(0,0,W*DPR,H*DPR).data;
-    let cleared = 0, total = 0;
-    for(let y=0; y<H*DPR; y+=step){
-      for(let x=0; x<W*DPR; x+=step){
-        const idx = (y*(W*DPR) + x) * 4 + 3;
-        total++;
-        if(imgData[idx] < 40) cleared++;
+  // ---- Progress tracking (grid-based, no canvas pixel reading) ----
+  // Some browsers/webviews restrict reading canvas pixel data (getImageData)
+  // for security reasons, especially when a local image was drawn onto a
+  // canvas. That used to silently break the "how much is scratched" check,
+  // so the success animation and download button would never appear.
+  // This version just marks cells in a plain JS grid whenever the user
+  // scratches near them — no pixel reading involved, works everywhere.
+  const GRID_SIZE = 22;
+  let scratchGrid = new Array(GRID_SIZE * GRID_SIZE).fill(false);
+  let scratchedCells = 0;
+  const TOTAL_CELLS = GRID_SIZE * GRID_SIZE;
+
+  function markGrid(x,y){
+    const radiusCells = Math.max(1, Math.round((Math.max(W,H)*0.055 / Math.max(W,H)) * GRID_SIZE) + 1);
+    const cx = Math.floor((x / W) * GRID_SIZE);
+    const cy = Math.floor((y / H) * GRID_SIZE);
+    for(let gy = cy - radiusCells; gy <= cy + radiusCells; gy++){
+      for(let gx = cx - radiusCells; gx <= cx + radiusCells; gx++){
+        if(gx < 0 || gy < 0 || gx >= GRID_SIZE || gy >= GRID_SIZE) continue;
+        const dist = Math.hypot(gx - cx, gy - cy);
+        if(dist > radiusCells) continue;
+        const idx = gy * GRID_SIZE + gx;
+        if(!scratchGrid[idx]){
+          scratchGrid[idx] = true;
+          scratchedCells++;
+        }
       }
     }
-    const pct = cleared/total;
+  }
+  function resetGrid(){
+    scratchGrid = new Array(GRID_SIZE * GRID_SIZE).fill(false);
+    scratchedCells = 0;
+  }
+
+  function checkProgress(){
+    const pct = scratchedCells / TOTAL_CELLS;
     if(pct > 0.55 && !revealed){
       revealAll();
     }
@@ -628,28 +650,36 @@
       return;
     }
 
-    if(photoReady && photoImg){
-      // Fallback (e.g. opened from disk without a server, so fetch() can't
-      // read the file): re-draw the photo at its full native resolution,
-      // uncropped, then export as lossless PNG.
-      const full = document.createElement('canvas');
-      full.width = photoImg.naturalWidth;
-      full.height = photoImg.naturalHeight;
-      full.getContext('2d').drawImage(photoImg, 0, 0);
-      link.download = 'foto-kejutan.png';
-      link.href = full.toDataURL('image/png');
-      link.click();
-      return;
-    }
+    try{
+      if(photoReady && photoImg){
+        // Fallback (e.g. opened from disk without a server, so fetch() can't
+        // read the file): re-draw the photo at its full native resolution,
+        // uncropped, then export as lossless PNG.
+        const full = document.createElement('canvas');
+        full.width = photoImg.naturalWidth;
+        full.height = photoImg.naturalHeight;
+        full.getContext('2d').drawImage(photoImg, 0, 0);
+        link.download = 'foto-kejutan.png';
+        link.href = full.toDataURL('image/png');
+        link.click();
+        return;
+      }
 
-    // No real photo loaded yet — download the placeholder artwork.
-    link.download = 'foto-kejutan.png';
-    link.href = photoCanvas.toDataURL('image/png');
-    link.click();
+      // No real photo loaded yet — download the placeholder artwork.
+      link.download = 'foto-kejutan.png';
+      link.href = photoCanvas.toDataURL('image/png');
+      link.click();
+    } catch(err){
+      // Canvas export blocked by the browser (e.g. strict local-file
+      // security) — open the original photo directly so the person can
+      // still save it manually (long-press → save image).
+      window.open(PHOTO_FILENAME, '_blank');
+    }
   });
 
   resetBtn.addEventListener('click', ()=>{
     revealed = false;
+    resetGrid();
     successOverlay.classList.remove('show');
     downloadRow.classList.remove('show');
     scratchCanvas.style.transition = 'none';
