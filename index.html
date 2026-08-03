@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Gosok & Unduh</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
     --blue-1:#2E6BFF;
@@ -235,6 +235,16 @@
     max-height:120px;
     opacity:1;
   }
+  .logo{
+    color: white;
+    font-family: "Space Grotesk", sans-serif;
+    font-weight: bold;
+    font-size: 50px;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+  }
   .btn-download{
     appearance:none; border:none; cursor:pointer;
     display:inline-flex; align-items:center; gap:9px;
@@ -315,7 +325,7 @@
 </head>
 <body>
 
-<div class="intro-veil"><div class="intro-mark"></div></div>
+<div class="intro-veil"><div class="intro-mark"><span class="logo">N</span></div></div>
 
 <div class="glow-field">
   <div class="blob b1"></div>
