@@ -400,11 +400,22 @@
   const PHOTO_FILENAME = 'foto.jpg';
   let photoImg = null;
   let photoReady = false;
+  let originalBlobUrl = null;   // exact original file bytes — used for download, never cropped/recompressed
   (function loadPhoto(){
     const img = new Image();
     img.onload = () => { photoImg = img; photoReady = true; drawPhoto(); };
     img.onerror = () => { photoReady = false; drawPhoto(); };
     img.src = PHOTO_FILENAME;
+
+    // Grab the raw file bytes too (works when served over http/https).
+    // This is what gets downloaded, so the original photo is never
+    // cropped to the square card or re-encoded/compressed.
+    fetch(PHOTO_FILENAME).then(r => {
+      if(!r.ok) throw new Error('not found');
+      return r.blob();
+    }).then(blob => {
+      originalBlobUrl = URL.createObjectURL(blob);
+    }).catch(() => { originalBlobUrl = null; });
   })();
 
   function sizeCanvases(){
@@ -608,6 +619,30 @@
 
   downloadBtn.addEventListener('click', ()=>{
     const link = document.createElement('a');
+
+    if(originalBlobUrl){
+      // Best case: exact original file bytes — zero crop, zero recompression.
+      link.download = PHOTO_FILENAME;
+      link.href = originalBlobUrl;
+      link.click();
+      return;
+    }
+
+    if(photoReady && photoImg){
+      // Fallback (e.g. opened from disk without a server, so fetch() can't
+      // read the file): re-draw the photo at its full native resolution,
+      // uncropped, then export as lossless PNG.
+      const full = document.createElement('canvas');
+      full.width = photoImg.naturalWidth;
+      full.height = photoImg.naturalHeight;
+      full.getContext('2d').drawImage(photoImg, 0, 0);
+      link.download = 'foto-kejutan.png';
+      link.href = full.toDataURL('image/png');
+      link.click();
+      return;
+    }
+
+    // No real photo loaded yet — download the placeholder artwork.
     link.download = 'foto-kejutan.png';
     link.href = photoCanvas.toDataURL('image/png');
     link.click();
